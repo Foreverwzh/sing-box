@@ -94,7 +94,19 @@ func (m *ConnectionManager) TrackPacketConn(conn net.PacketConn) net.PacketConn 
 	}
 }
 
+// keepDomainForRemote drops locally resolved addresses when a domain is handed to a remote outbound. Velum: the local
+// answer exists to match IP rules. It may be poisoned or point at a CDN near this device, so the node resolves the domain itself.
+func keepDomainForRemote(this N.Dialer, metadata *adapter.InboundContext) {
+	if !metadata.Destination.IsDomain() {
+		return
+	}
+	if outbound, isOutbound := this.(adapter.Outbound); isOutbound && outbound.Type() != C.TypeDirect {
+		metadata.DestinationAddresses = nil
+	}
+}
+
 func (m *ConnectionManager) NewConnection(ctx context.Context, this N.Dialer, conn net.Conn, metadata adapter.InboundContext, onClose N.CloseHandlerFunc) {
+	keepDomainForRemote(this, &metadata)
 	ctx = adapter.WithContext(ctx, &metadata)
 	var (
 		remoteConn net.Conn
@@ -156,6 +168,7 @@ func (m *ConnectionManager) NewConnection(ctx context.Context, this N.Dialer, co
 }
 
 func (m *ConnectionManager) NewPacketConnection(ctx context.Context, this N.Dialer, conn N.PacketConn, metadata adapter.InboundContext, onClose N.CloseHandlerFunc) {
+	keepDomainForRemote(this, &metadata)
 	ctx = adapter.WithContext(ctx, &metadata)
 	var (
 		remotePacketConn   net.PacketConn

@@ -416,10 +416,10 @@ func (r *Router) PreMatch(metadata adapter.InboundContext, firstPacket []byte) a
 			}
 			return adapter.PreMatchResult{Action: adapter.PreMatchHijackDNS}
 		case *R.RuleActionResolve:
+			// Velum: a failed lookup only means IP rules cannot match; keep matching instead of rejecting.
 			resolveErr := r.actionResolve(adapter.WithContext(ctx, &metadata), &metadata, action)
 			if resolveErr != nil {
 				r.logger.DebugContext(ctx, "pre-match[", currentRuleIndex, "] ", currentRule, " => ", action, ": ", resolveErr)
-				return adapter.PreMatchResult{Action: adapter.PreMatchReject}
 			}
 		default:
 			return continueResult
@@ -680,9 +680,9 @@ match:
 				return
 			}
 		case *R.RuleActionResolve:
-			fatalErr = r.actionResolve(ctx, metadata, action)
-			if fatalErr != nil {
-				return
+			// Velum: a failed lookup only means IP rules cannot match; keep matching instead of failing the connection.
+			if resolveErr := r.actionResolve(ctx, metadata, action); resolveErr != nil {
+				r.logger.DebugContext(ctx, "match[", currentRuleIndex, "] ", currentRule, " => ", action, ": ", resolveErr)
 			}
 		}
 		actionType := currentRule.Action().Type()
